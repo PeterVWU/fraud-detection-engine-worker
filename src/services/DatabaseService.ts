@@ -10,9 +10,23 @@ export class DatabaseService {
         fraudResult: FraudCheckResult,
         ipLocation: { city: string; country: string; } | null
     ): Promise<void> {
-        const overallScore = fraudResult.score
+        // First check if order exists
+        const checkStmt = this.env.DB.prepare(`
+            SELECT order_number FROM fraudulent_orders 
+            WHERE order_number = ? AND platform_type = ?
+        `);
 
-        const stmt = this.env.DB.prepare(`
+        const exists = await checkStmt.bind(
+            order.order_number,
+            order.platform_type
+        ).first();
+
+        if (exists) {
+            console.log(`Order ${order.order_number} already exists in database, skipping...`);
+            return;
+        }
+
+        const insertStmt = this.env.DB.prepare(`
             INSERT INTO fraudulent_orders (
                 order_number, platform_type, customer_email, customer_name,
                 total_amount, shipping_address, shipping_city, shipping_country,
@@ -21,7 +35,7 @@ export class DatabaseService {
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `);
 
-        await stmt.bind(
+        await insertStmt.bind(
             order.order_number,
             order.platform_type,
             order.customer_data.email,
@@ -33,7 +47,7 @@ export class DatabaseService {
             order.client_ip || null,
             ipLocation?.city || null,
             ipLocation?.country || null,
-            overallScore,
+            0,
             fraudResult.details,
             order.metadata?.duoplane_id
         ).run();

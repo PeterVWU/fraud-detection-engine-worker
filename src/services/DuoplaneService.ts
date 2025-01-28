@@ -10,30 +10,33 @@ export class DuoplaneService {
         this.auth = btoa(`${env.DUOPLANE_USERNAME}:${env.DUOPLANE_PASSWORD}`);
     }
 
-    private async makeRequest(path: string, params: Record<string, any> = {}) {
+    private async makeRequest(path: string, method: string = "GET", params: Record<string, any> = {}, body: any = null): Promise<any> {
         const searchParams = new URLSearchParams();
-        for (const [key, value] of Object.entries(params)) {
-            if (Array.isArray(value)) {
-                value.forEach(v => searchParams.append(`search[${key}][]`, v.toString()));
-            } else {
-                searchParams.append(`search[${key}]`, value.toString());
+        if (params) {
+            for (const [key, value] of Object.entries(params)) {
+                if (Array.isArray(value)) {
+                    value.forEach(v => searchParams.append(`search[${key}][]`, v.toString()));
+                } else {
+                    searchParams.append(`search[${key}]`, value.toString());
+                }
             }
         }
 
         const url = `${this.baseUrl}${path}${searchParams.toString() ? '?' + searchParams.toString() : ''}`;
-        console.log('url', url)
         const response = await fetch(url, {
+            method: method,
             headers: {
                 'Authorization': `Basic ${this.auth}`,
-                'Accept': 'application/json',
-            }
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
+            body: body ? JSON.stringify(body) : undefined
         });
 
         if (!response.ok) {
             const error = await response.text();
             throw new Error(`Duoplane API error: ${response.status} - ${error}`);
         }
-
         return response.json();
     }
 
@@ -48,7 +51,7 @@ export class DuoplaneService {
                 per_page: 250 // Maximum allowed by API
             };
 
-            const response: any = await this.makeRequest('/purchase_orders.json', params);
+            const response: any = await this.makeRequest('/purchase_orders.json', "GET", params);
             console.log('response', response)
             // Add platform type based on store_name if possible
             return response.map((order: DuoplanePurchaseOrder) => ({
@@ -74,11 +77,19 @@ export class DuoplaneService {
     }
 
     async markOrderOnHold(orderId: string): Promise<void> {
+        // this function need duoplane orderid
         try {
-            await this.makeRequest(`/purchase_orders/${orderId}.json`, {
-                confirmed: false,
-                status: 'on_hold'
+            const holdUntil = new Date();
+            holdUntil.setDate(holdUntil.getDate() + 30); // Hold for 30 day
+
+            await this.makeRequest(`/purchase_orders/${orderId}.json`, "PUT", undefined, {
+                purchase_order: {
+                    confirmed: 0,
+                    vendor_reference: 'FRAUD_CHECK_HOLD',
+                    hold_purchase_order_until: holdUntil.toISOString()
+                }
             });
+            console.log('Order marked as on hold:', orderId);
         } catch (error) {
             console.error(`Error marking order ${orderId} as on hold:`, error);
             throw error;

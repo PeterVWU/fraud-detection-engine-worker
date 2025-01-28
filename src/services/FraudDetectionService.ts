@@ -6,22 +6,6 @@ import { NormalizedOrder, IPLocation, FraudCheckResult } from '../types';
 export class FraudDetectionService {
     constructor(private readonly env: Env) { }
 
-    async evaluateOrder(order: NormalizedOrder): Promise<FraudCheckResult[]> {
-        const results: FraudCheckResult[] = [];
-
-        // Rule 1: Location Correlation Check
-        // if (order.client_ip) {
-        //     const locationResult = await this.checkLocationCorrelation(order);
-        //     results.push(locationResult);
-        // }
-
-        // Rule 2: Address Blocklist Check
-        // const blocklistResult = await this.checkAddressBlocklist(order);
-        // results.push(blocklistResult);
-
-        return results;
-    }
-
     async checkLocationCorrelation(order: NormalizedOrder): Promise<number> {
         try {
             // 1. Get IP geolocation

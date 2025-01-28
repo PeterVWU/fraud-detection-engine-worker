@@ -3,6 +3,7 @@
 import { WorkerEntrypoint } from "cloudflare:workers";
 import { OrderService, } from "./services/OrderService";
 import { DatabaseService } from "./services/DatabaseService";
+import { DuoplaneService } from "./services/DuoplaneService";
 import { Env } from "./types";
 
 export default class FraudDetectionWorker extends WorkerEntrypoint {
@@ -29,6 +30,14 @@ export default class FraudDetectionWorker extends WorkerEntrypoint {
 			} else if (path === 'updateFraudulentOrderStatus') {
 				const { order }: any = await request.json()
 				databaseService.updateFraudulentOrderStatus(order.orderId, order.status, order.reviewedBy)
+
+				return new Response(JSON.stringify({ message: 'status update success' }), {
+					headers: { 'Content-Type': 'application/json' },
+				});
+			} else if (path === '/markOrderOnHold') {
+				const { orderid }: any = await request.json()
+				const duoplaneService = new DuoplaneService(env);
+				await duoplaneService.markOrderOnHold(orderid);
 
 				return new Response(JSON.stringify({ message: 'status update success' }), {
 					headers: { 'Content-Type': 'application/json' },
