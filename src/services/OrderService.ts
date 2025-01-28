@@ -110,7 +110,7 @@ export class OrderService {
                     }
                 } else {
                     const oldestOrder = pastOrders.reduce((oldest, order) => {
-                        return order.created_at < oldest.created_at ? order : oldest;
+                        return new Date(order.created_at) < new Date(oldest.created_at) ? order : oldest;
                     }, pastOrders[0]);
                     const today = new Date();
                     const oldestOrderDate = new Date(oldestOrder.created_at);

@@ -39,7 +39,15 @@ export default class FraudDetectionWorker extends WorkerEntrypoint {
 				const duoplaneService = new DuoplaneService(env);
 				await duoplaneService.markOrderOnHold(orderid);
 
-				return new Response(JSON.stringify({ message: 'status update success' }), {
+				return new Response(JSON.stringify({ message: 'mark order on hold success' }), {
+					headers: { 'Content-Type': 'application/json' },
+				});
+			} else if (path === '/releaseOrder') {
+				const { orderid }: any = await request.json()
+				const duoplaneService = new DuoplaneService(env);
+				await duoplaneService.releaseOrder(orderid);
+
+				return new Response(JSON.stringify({ message: 'release order success' }), {
 					headers: { 'Content-Type': 'application/json' },
 				});
 			}
