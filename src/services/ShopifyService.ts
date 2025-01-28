@@ -38,6 +38,16 @@ export class ShopifyService {
                 prefix: 'EL',
                 url: this.env.SHOPIFY_STORE_EL_URL,
                 token: this.env.SHOPIFY_STORE_EL_TOKEN
+            },
+            {
+                prefix: 'YM',
+                url: this.env.SHOPIFY_STORE_YM_URL,
+                token: this.env.SHOPIFY_STORE_YM_TOKEN
+            },
+            {
+                prefix: 'R',
+                url: this.env.SHOPIFY_STORE_R_URL,
+                token: this.env.SHOPIFY_STORE_R_TOKEN
             }
         ]
         for (const config of storeConfigs) {

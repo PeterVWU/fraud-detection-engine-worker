@@ -17,10 +17,14 @@ export interface Env {
     SHOPIFY_STORE_EJR_URL: string;
     SHOPIFY_STORE_AL_URL: string;
     SHOPIFY_STORE_EL_URL: string;
+    SHOPIFY_STORE_YM_URL: string;
+    SHOPIFY_STORE_R_URL: string;
 
     SHOPIFY_STORE_EJC_TOKEN: string;
     SHOPIFY_STORE_MH_TOKEN: string;
     SHOPIFY_STORE_EJR_TOKEN: string;
     SHOPIFY_STORE_AL_TOKEN: string;
     SHOPIFY_STORE_EL_TOKEN: string;
+    SHOPIFY_STORE_YM_TOKEN: string;
+    SHOPIFY_STORE_R_TOKEN: string;
 }

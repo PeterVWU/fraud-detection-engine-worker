@@ -20,6 +20,8 @@
     "SHOPIFY_STORE_MH_URL": "https://MistHub.myshopify.com",
     "SHOPIFY_STORE_EJR_URL": "https://ejuices.myshopify.com",
     "SHOPIFY_STORE_AL_URL": "https://deals-305.myshopify.com",
-    "SHOPIFY_STORE_EL_URL": "https://eliquid-com.myshopify.com"
+    "SHOPIFY_STORE_EL_URL": "https://eliquid-com.myshopify.com",
+    "SHOPIFY_STORE_YM_URL": "https://yamivapor.myshopify.com",
+    "SHOPIFY_STORE_R_URL": "https://ca2bbf.myshopify.com"
   }
 }
