@@ -1,6 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "fraud-detection-engine-worker",
+  "name": "fraud-detection-worker",
   "main": "src/index.ts",
   "compatibility_date": "2025-01-24",
   "observability": {
