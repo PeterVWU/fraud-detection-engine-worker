@@ -76,3 +76,8 @@ export interface ShopifyOrder {
         user_agent: string | null;
     };
 }
+
+export interface StoreConfig {
+    url: string;
+    accessToken: string;
+}

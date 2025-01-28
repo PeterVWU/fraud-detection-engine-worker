@@ -1,6 +1,6 @@
 // src/services/magento.ts
 import { Env } from '../types/Env';
-import { NormalizedOrder, MagentoAddress, MagentoOrder, MagentoOrderItem, MagentoPayment } from '../types';
+import { NormalizedOrder, MagentoOrder } from '../types';
 
 
 export class MagentoService {
@@ -14,7 +14,6 @@ export class MagentoService {
 
     private async makeRequest(path: string) {
         const url = `${this.baseUrl}${path}`;
-        console.log('magento url', url)
         const response = await fetch(url, {
             headers: {
                 'Authorization': `Bearer ${this.token}`,
@@ -30,7 +29,7 @@ export class MagentoService {
         return response.json();
     }
 
-    async getOrderByNumber(orderNumber: string): Promise<NormalizedOrder | null> {
+    async getOrderByOrderNumber(orderNumber: string, email: string): Promise<NormalizedOrder | null> {
         try {
             // Ensure it's a 9-digit number
             if (!/^\d{9}$/.test(orderNumber)) {
@@ -53,6 +52,27 @@ export class MagentoService {
 
         } catch (error) {
             console.error(`Error fetching Magento order ${orderNumber}:`, error);
+            throw error;
+        }
+    }
+
+    async pastOrderCount(email: string): Promise<number> {
+        try {
+
+            const response: any = await this.makeRequest(
+                `/rest/V1/orders?searchCriteria[filter_groups][0][filters][0][field]=customer_email&` +
+                `searchCriteria[filter_groups][0][filters][0][value]=${email}&` +
+                `searchCriteria[filter_groups][0][filters][0][condition_type]=eq`
+            );
+
+            if (!response.items || response.items.length === 0) {
+                console.warn(`No Magento order found for : ${email}`);
+                return 0;
+            }
+
+            return response.items.length as number;
+        } catch (error) {
+            console.error(`Error fetching Magento order ${email}:`, error);
             throw error;
         }
     }
@@ -84,7 +104,7 @@ export class MagentoService {
                 address1: order.extension_attributes.shipping_assignments[0].shipping.address.street[0],
                 address2: order.extension_attributes.shipping_assignments[0].shipping.address.street[1] || null,
                 city: order.extension_attributes.shipping_assignments[0].shipping.address.city,
-                province: order.extension_attributes.shipping_assignments[0].shipping.address.region,
+                province: order.extension_attributes.shipping_assignments[0].shipping.address.region_code,
                 country: order.extension_attributes.shipping_assignments[0].shipping.address.country_id,
                 zip: order.extension_attributes.shipping_assignments[0].shipping.address.postcode,
                 phone: order.extension_attributes.shipping_assignments[0].shipping.address.telephone || null
@@ -95,7 +115,7 @@ export class MagentoService {
                 address1: order.billing_address.street[0],
                 address2: order.billing_address.street[1] || null,
                 city: order.billing_address.city,
-                province: order.billing_address.region,
+                province: order.billing_address.region_code,
                 country: order.billing_address.country_id,
                 zip: order.billing_address.postcode,
                 phone: order.billing_address.telephone || null

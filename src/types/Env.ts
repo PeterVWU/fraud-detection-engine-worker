@@ -11,4 +11,14 @@ export interface Env {
 
     SHOPIFY_STORE_URL: string;
     SHOPIFY_ACCESS_TOKEN: string;
+
+    SHOPIFY_STORE_EJC_URL: string;
+    SHOPIFY_STORE_MH_URL: string;
+    SHOPIFY_STORE_EJR_URL: string;
+    SHOPIFY_STORE_AL_URL: string;
+
+    SHOPIFY_STORE_EJC_TOKEN: string;
+    SHOPIFY_STORE_MH_TOKEN: string;
+    SHOPIFY_STORE_EJR_TOKEN: string;
+    SHOPIFY_STORE_AL_TOKEN: string;
 }

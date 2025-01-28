@@ -16,6 +16,10 @@
   "vars": {
     "MAGENTO_API_URL": "https://vapewholesaleusa.com",
     "DUOPLANE_API_URL": "https://app.duoplane.com",
-    "SHOPIFY_STORE_URL": "https://ejuices-co.myshopify.com"
+    "SHOPIFY_STORE_URL": "https://ejuices-co.myshopify.com",
+    "SHOPIFY_STORE_EJC_URL": "https://ejuices-co.myshopify.com",
+    "SHOPIFY_STORE_MH_URL": "https://MistHub.myshopify.com",
+    "SHOPIFY_STORE_EJR_URL": "https://ejuices.myshopify.com",
+    "SHOPIFY_STORE_AL_URL": "https://deals-305.myshopify.com"
   }
 }

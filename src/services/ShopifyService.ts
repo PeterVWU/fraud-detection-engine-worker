@@ -1,48 +1,190 @@
 // src/services/shopify.ts
-import { Env, ShopifyAddress, ShopifyLineItem, ShopifyOrder, NormalizedOrder } from '../types';
+import { Env, ShopifyOrder, NormalizedOrder, StoreConfig } from '../types';
 
 
 export class ShopifyService {
     private baseUrl: string;
+    private stores: Map<string, StoreConfig>;
 
     constructor(private readonly env: Env) {
         this.baseUrl = `${env.SHOPIFY_STORE_URL}/admin/api/2024-01`;
+        this.stores = new Map();
+        this.initializeStores();
     }
 
-    private async makeRequest(path: string) {
-        const url = `${this.baseUrl}${path}`;
+    private initializeStores() {
+        const storeConfigs = [
+            {
+                prefix: 'EJC',
+                url: this.env.SHOPIFY_STORE_EJC_URL,
+                token: this.env.SHOPIFY_STORE_EJC_TOKEN
+            },
+            {
+                prefix: 'MH',
+                url: this.env.SHOPIFY_STORE_MH_URL,
+                token: this.env.SHOPIFY_STORE_MH_TOKEN
+            },
+            {
+                prefix: 'EJR',
+                url: this.env.SHOPIFY_STORE_EJR_URL,
+                token: this.env.SHOPIFY_STORE_EJR_TOKEN
+            },
+            {
+                prefix: 'AL',
+                url: this.env.SHOPIFY_STORE_AL_URL,
+                token: this.env.SHOPIFY_STORE_AL_TOKEN
+            }
+        ]
+        for (const config of storeConfigs) {
+            if (config.url && config.token) {
+                this.stores.set(config.prefix, {
+                    url: config.url,
+                    accessToken: config.token
+                });
+            } else {
+                console.warn(`Missing configuration for Shopify store with prefix ${config.prefix}`);
+            }
+        }
+    }
+
+    private getStoreConfigFromOrderNumber(orderNumber: string): StoreConfig | null {
+        const prefix = orderNumber.match(/^([A-Z]+)/)?.[1];
+        if (!prefix) return null;
+        return this.stores.get(prefix) || null;
+    }
+
+    private async makeGraphQLRequest(storeUrl: string, accessToken: string, query: string, variables: any = {}) {
+        const url = `${storeUrl}/admin/api/2025-01/graphql.json`;
+        console.log('storeUrl', storeUrl)
+        console.log('accessToken', accessToken)
         const response = await fetch(url, {
+            method: 'POST',
             headers: {
-                'X-Shopify-Access-Token': this.env.SHOPIFY_ACCESS_TOKEN,
+                'X-Shopify-Access-Token': accessToken,
                 'Content-Type': 'application/json',
             },
+            body: JSON.stringify({
+                query,
+                variables
+            })
         });
 
         if (!response.ok) {
             const error = await response.text();
-            throw new Error(`Shopify API error: ${response.status} - ${error}`);
+            throw new Error(`Shopify GraphQL error: ${response.status} - ${error}`);
         }
 
-        return response.json();
+        const result: any = await response.json();
+        if (result.errors) {
+            throw new Error(`GraphQL Errors: ${JSON.stringify(result.errors)}`);
+        }
+
+        return result.data;
     }
 
-    async getOrderByNumber(orderNumber: string): Promise<NormalizedOrder | null> {
+    async getOrder(orderNumber: string): Promise<NormalizedOrder | null> {
         try {
-            // Remove 'EJC' prefix if present
-            const cleanOrderNumber = orderNumber.replace('EJC', '');
+            const storeConfig = this.getStoreConfigFromOrderNumber(orderNumber);
+            if (!storeConfig) {
+                throw new Error(`No Shopify store found for order number: ${orderNumber}`);
+            }
+            const query = `
+                query getOrder($query: String!) {
+                    orders(first: 1, query: $query) {
+                        edges {
+                            node {
+                                id
+                                name
+                                createdAt
+                                displayFulfillmentStatus
+                                totalPriceSet {
+                                    shopMoney {
+                                        amount
+                                        currencyCode
+                                    }
+                                }
+                                customer {
+                                    id
+                                    email
+                                    phone
+                                    firstName
+                                    lastName
+                                    numberOfOrders
+                                }
+                                shippingAddress {
+                                    firstName
+                                    lastName
+                                    address1
+                                    address2
+                                    city
+                                    province
+                                    provinceCode
+                                    country
+                                    countryCodeV2
+                                    zip
+                                    phone
+                                    latitude
+                                    longitude
+                                }
+                                billingAddress {
+                                    firstName
+                                    lastName
+                                    address1
+                                    address2
+                                    city
+                                    province
+                                    provinceCode
+                                    country
+                                    countryCodeV2
+                                    zip
+                                    phone
+                                }
+                                paymentGatewayNames
+                                transactions(first: 1) {
+                                    gateway
+                                    paymentDetails {
+                                        ... on CardPaymentDetails {
+                                            avsResultCode
+                                            cvvResultCode
+                                            company
+                                            number
+                                            expirationMonth
+                                            expirationYear
+                                        }
+                                    }
+                                }
+                                lineItems(first: 50) {
+                                    edges {
+                                        node {
+                                            id
+                                            title
+                                            quantity
+                                            sku
+                                            product {
+                                                id
+                                            }
+                                        }
+                                    }
+                                }
+                                clientIp
+                            }
+                        }
+                    }
+                }
+            `;
+            const variables = {
+                query: `name:${orderNumber}`
+            };
 
-            // Query by name which includes the #EJC prefix
-            const response: any = await this.makeRequest(
-                `/orders.json?name=%23${orderNumber}&status=any`
-            );
+            const data = await this.makeGraphQLRequest(storeConfig.url, storeConfig.accessToken, query, variables);
 
-            if (!response.orders || response.orders.length === 0) {
+            if (!data.orders.edges.length) {
                 console.warn(`No Shopify order found for order number: ${orderNumber}`);
                 return null;
             }
 
-            const shopifyOrder = response.orders[0];
-            return this.normalizeOrder(shopifyOrder);
+            const order = data.orders.edges[0].node;
+            return this.normalizeGraphQLOrder(order);
 
         } catch (error) {
             console.error(`Error fetching Shopify order ${orderNumber}:`, error);
@@ -50,66 +192,82 @@ export class ShopifyService {
         }
     }
 
-    private normalizeOrder(order: ShopifyOrder): NormalizedOrder {
+    private normalizeGraphQLOrder(order: any): NormalizedOrder {
+        const creditCard = order.transactions?.paymentDetails?.creditCard;
+        console.log('creditCard', creditCard)
         return {
-            id: order.id.toString(),
-            platform_id: order.id.toString(),
+            id: order.id.split('/').pop(),
+            platform_id: order.id,
             platform_type: 'shopify',
             order_number: order.name.replace('#', ''),
-            created_at: order.created_at,
-            status: 'processing',
+            created_at: order.createdAt,
+            status: this.normalizeStatus(order.displayFulfillmentStatus),
             customer_data: {
                 email: order.customer.email,
                 phone: order.customer.phone,
-                first_name: order.customer.first_name,
-                last_name: order.customer.last_name,
-                orders_count: order.customer.orders_count,
-                total_spent: order.customer.total_spent
+                first_name: order.customer.firstName,
+                last_name: order.customer.lastName,
+                orders_count: order.customer.numberOfOrders,
+                total_spent: ''
             },
             shipping_address: {
-                first_name: order.shipping_address.first_name,
-                last_name: order.shipping_address.last_name,
-                address1: order.shipping_address.address1,
-                address2: order.shipping_address.address2,
-                city: order.shipping_address.city,
-                province: order.shipping_address.province,
-                country: order.shipping_address.country,
-                zip: order.shipping_address.zip,
-                phone: order.shipping_address.phone,
-                latitude: order.shipping_address.latitude,
-                longitude: order.shipping_address.longitude
+                first_name: order.shippingAddress.firstName,
+                last_name: order.shippingAddress.lastName,
+                address1: order.shippingAddress.address1,
+                address2: order.shippingAddress.address2,
+                city: order.shippingAddress.city,
+                province: order.shippingAddress.provinceCode,
+                country: order.shippingAddress.countryCodeV2,
+                zip: order.shippingAddress.zip,
+                phone: order.shippingAddress.phone,
+                latitude: order.shippingAddress.latitude,
+                longitude: order.shippingAddress.longitude
             },
             billing_address: {
-                first_name: order.billing_address.first_name,
-                last_name: order.billing_address.last_name,
-                address1: order.billing_address.address1,
-                address2: order.billing_address.address2,
-                city: order.billing_address.city,
-                province: order.billing_address.province,
-                country: order.billing_address.country,
-                zip: order.billing_address.zip,
-                phone: order.billing_address.phone
+                first_name: order.billingAddress.firstName,
+                last_name: order.billingAddress.lastName,
+                address1: order.billingAddress.address1,
+                address2: order.billingAddress.address2,
+                city: order.billingAddress.city,
+                province: order.billingAddress.provinceCode,
+                country: order.billingAddress.countryCodeV2,
+                zip: order.billingAddress.zip,
+                phone: order.billingAddress.phone
             },
             payment_data: {
-                method: order.payment_details.credit_card_company ? 'credit_card' : 'other',
-                card_bin: order.payment_details.credit_card_bin || undefined,
-                card_last4: order.payment_details.credit_card_number || undefined,
-                card_company: order.payment_details.credit_card_company || undefined,
-                avs_result: order.payment_details.avs_result_code || undefined,
-                cvv_result: order.payment_details.cvv_result_code || undefined
+                method: order.transactions?.gateway || 'unknown',
+                card_bin: order.transactions?.paymentDetails?.number,
+                card_last4: order.transactions?.paymentDetails?.number,
+                card_company: order.transactions?.paymentDetails?.company,
+                avs_result: order.transactions?.paymentDetails?.avsResultCode,
+                cvv_result: order.transactions?.paymentDetails?.cvvResultCode
             },
-            items: order.line_items.map(item => ({
-                id: item.id.toString(),
-                product_id: item.product_id.toString(),
-                title: item.title,
-                quantity: item.quantity,
-                sku: item.sku,
-                price: parseFloat(item.price),
-                total_discount: parseFloat(item.total_discount)
+            items: order.lineItems.edges.map((edge: any) => ({
+                id: edge.node.id.split('/').pop(),
+                product_id: edge.node.product?.id?.split('/').pop(),
+                title: edge.node.title,
+                quantity: edge.node.quantity,
+                sku: edge.node.sku,
+                price: 0,
+                total_discount: 0
             })),
-            total_amount: parseFloat(order.total_price),
-            client_ip: order.client_details.browser_ip || undefined,
-            user_agent: order.client_details.user_agent || undefined
+            total_amount: parseFloat(order.totalPriceSet.shopMoney.amount),
+            client_ip: order.clientIp,
+            user_agent: '',
         };
+    }
+    private normalizeStatus(status: string): string {
+        switch (status.toLowerCase()) {
+            case 'unfulfilled':
+                return 'pending';
+            case 'fulfilled':
+                return 'completed';
+            case 'partially_fulfilled':
+                return 'partially_fulfilled';
+            case 'restocked':
+                return 'cancelled';
+            default:
+                return status.toLowerCase();
+        }
     }
 }
