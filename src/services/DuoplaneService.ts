@@ -52,7 +52,6 @@ export class DuoplaneService {
             };
 
             const response: any = await this.makeRequest('/purchase_orders.json', "GET", params);
-            console.log('response', response)
             // Add platform type based on store_name if possible
             return response.map((order: DuoplanePurchaseOrder) => ({
                 ...order,
