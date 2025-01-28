@@ -1,6 +1,6 @@
 // src/services/order.ts
 import { Env } from '../types/Env';
-import { NormalizedOrder, DuoplanePurchaseOrder } from '../types';
+import { NormalizedOrder, DuoplanePurchaseOrder, FraudCheckResult } from '../types';
 import { DuoplaneService } from './DuoplaneService';
 import { ShopifyService } from './ShopifyService';
 import { MagentoService } from './MagentoService';
@@ -81,29 +81,57 @@ export class OrderService {
             // 2. Enrich the normalized order with any additional Duoplane data
             normalizedOrder = this.enrichOrderWithDuoplaneData(normalizedOrder, duoplaneOrder);
             console.log('order:', normalizedOrder.order_number);
-            console.log('order shipping address:', normalizedOrder.shipping_address);
-            console.log('order billing address:', normalizedOrder.billing_address);
+            console.log('order shipping province:', normalizedOrder.shipping_address.province);
+            console.log('order shipping address line:', normalizedOrder.shipping_address.address1);
+            console.log('order billing province:', normalizedOrder.billing_address.province);
 
-            // check if location all matches.
-            const fraudCheckResult = await this.fraudDetectionService.checkLocationCorrelation(normalizedOrder);
-
-            // check if customer has pass orders if location dont match
-            if (!fraudCheckResult.passed) {
+            let fraudCheckResult: FraudCheckResult = {
+                details: '',
+                passed: true
+            }
+            // check if location all matches. all match = 3, no match = 0
+            const locationCorrelationScore = await this.fraudDetectionService.checkLocationCorrelation(normalizedOrder);
+            if (locationCorrelationScore === 0) {
+                fraudCheckResult = {
+                    passed: false,
+                    details: 'Billing, Shipping, Ip location mismatch'
+                }
+            } else if (locationCorrelationScore < 3) {
+                // check pass order if not all location matches
                 const customerOrder = normalizedOrder.customer_data
-                const numberOfPastOrders = normalizedOrder.platform_type === 'shopify' ? customerOrder.orders_count : await this.magentoService.pastOrderCount(customerOrder.email);
-                console.log('numberOfPastOrders:', numberOfPastOrders);
-                fraudCheckResult.passed = numberOfPastOrders > 0;
+                const pastOrders = normalizedOrder.platform_type === 'shopify' ?
+                    await this.shopifyService.getPastOrders(normalizedOrder.order_number, customerOrder.email) :
+                    await this.magentoService.getPastOrders(customerOrder.email);
+                // find oldest order from pastOrders and check if it is older than today
+                if (!pastOrders) {
+                    fraudCheckResult = {
+                        passed: false,
+                        details: 'Billing, Shipping, Ip location mismatch, no past orders'
+                    }
+                } else {
+                    const oldestOrder = pastOrders.reduce((oldest, order) => {
+                        return order.created_at < oldest.created_at ? order : oldest;
+                    }, pastOrders[0]);
+                    const today = new Date();
+                    const oldestOrderDate = new Date(oldestOrder.created_at);
+                    const timeDifferenceMs = today.getTime() - oldestOrderDate.getTime();
+                    const daysDifference = timeDifferenceMs / (1000 * 60 * 60 * 24);
+                    console.log('today:', today);
+                    console.log('oldestOrderDate:', oldestOrderDate);
+                    console.log('daysDifference:', daysDifference);
+
+                    fraudCheckResult = {
+                        passed: daysDifference >= 2,
+                        details: daysDifference <= 2 ? `Billing, Shipping, Ip location mismatch, has no past orders older than 1 day` : ''
+                    }
+                }
             }
 
-            // if any fraudcheck fails, mark order as on hold
-            const isFraudulent = fraudCheckResult.passed;
-
-            // todo: remove !
-            if (isFraudulent) {
-                this.databaseService.saveFraudulentOrder(normalizedOrder, fraudCheckResult, null);
+            if (!fraudCheckResult.passed) {
+                await this.databaseService.saveFraudulentOrder(normalizedOrder, fraudCheckResult, null);
+                await this.duoplaneService.markOrderOnHold(duoplaneOrder.id);
             }
             console.log('fraudcheck result:', fraudCheckResult);
-            console.log('isFraudulent:', isFraudulent);
 
             return {
                 success: true,

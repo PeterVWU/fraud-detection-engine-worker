@@ -10,10 +10,10 @@ export class FraudDetectionService {
         const results: FraudCheckResult[] = [];
 
         // Rule 1: Location Correlation Check
-        if (order.client_ip) {
-            const locationResult = await this.checkLocationCorrelation(order);
-            results.push(locationResult);
-        }
+        // if (order.client_ip) {
+        //     const locationResult = await this.checkLocationCorrelation(order);
+        //     results.push(locationResult);
+        // }
 
         // Rule 2: Address Blocklist Check
         // const blocklistResult = await this.checkAddressBlocklist(order);
@@ -22,11 +22,11 @@ export class FraudDetectionService {
         return results;
     }
 
-    async checkLocationCorrelation(order: NormalizedOrder): Promise<FraudCheckResult> {
+    async checkLocationCorrelation(order: NormalizedOrder): Promise<number> {
         try {
             // 1. Get IP geolocation
             const ipLocation = await this.getIPLocation(order.client_ip!);
-            console.log('order ip location', ipLocation)
+            console.log('order ip location', ipLocation?.region)
             const shippingCountry = order.shipping_address.country
             const shippingState = order.shipping_address.province
             const billingCountry = order.billing_address.country
@@ -40,22 +40,11 @@ export class FraudDetectionService {
             // at least 2 of the 3 must match
             const isLocationMatchPass = (isShippingbillingMatch + isShippingIpMatch + isBillingIpMatch) > 1;
 
-
-            return {
-                ruleId: 'location_correlation',
-                passed: isLocationMatchPass,
-                score: isLocationMatchPass ? 0 : 100,
-                details: isLocationMatchPass ? '' : 'Location mismatch'
-            };
+            return isShippingbillingMatch + isShippingIpMatch + isBillingIpMatch
 
         } catch (error) {
             console.error('Error in location correlation check:', error);
-            return {
-                ruleId: 'location_correlation',
-                passed: true, // Pass on error
-                score: 0,
-                details: `Error performing location check: ${error instanceof Error ? error.message : 'Unknown error'}`
-            };
+            return 0
         }
     }
 
@@ -86,9 +75,7 @@ export class FraudDetectionService {
             const score = passed ? 0 : 100; // Binary score for blocklist
 
             return {
-                ruleId: 'address_blocklist',
                 passed,
-                score,
                 details: passed ? 'Addresses not found in blocklist' :
                     `Blocked addresses found: ${blockedAddresses.join(', ')}`
             };
@@ -96,9 +83,7 @@ export class FraudDetectionService {
         } catch (error) {
             console.error('Error in address blocklist check:', error);
             return {
-                ruleId: 'address_blocklist',
                 passed: true, // Pass on error
-                score: 0,
                 details: `Error checking address blocklist: ${error instanceof Error ? error.message : 'Unknown error'}`
             };
         }

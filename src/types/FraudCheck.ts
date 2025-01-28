@@ -9,8 +9,6 @@ export interface IPLocation {
 }
 
 export interface FraudCheckResult {
-    ruleId: string;
     passed: boolean;
-    score: number;
     details: string;
 }

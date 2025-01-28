@@ -56,7 +56,7 @@ export class MagentoService {
         }
     }
 
-    async pastOrderCount(email: string): Promise<number> {
+    async getPastOrders(email: string): Promise<NormalizedOrder[] | null> {
         try {
 
             const response: any = await this.makeRequest(
@@ -67,10 +67,11 @@ export class MagentoService {
 
             if (!response.items || response.items.length === 0) {
                 console.warn(`No Magento order found for : ${email}`);
-                return 0;
+                return null;
             }
 
-            return response.items.length as number;
+            const magentoOrders = response.items.map((order: MagentoOrder) => this.normalizeOrder(order));
+            return magentoOrders
         } catch (error) {
             console.error(`Error fetching Magento order ${email}:`, error);
             throw error;

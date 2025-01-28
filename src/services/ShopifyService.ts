@@ -82,15 +82,10 @@ export class ShopifyService {
         return result.data;
     }
 
-    async getOrder(orderNumber: string): Promise<NormalizedOrder | null> {
-        try {
-            const storeConfig = this.getStoreConfigFromOrderNumber(orderNumber);
-            if (!storeConfig) {
-                throw new Error(`No Shopify store found for order number: ${orderNumber}`);
-            }
-            const query = `
+    getGqlQuery(count: number): string {
+        return `
                 query getOrder($query: String!) {
-                    orders(first: 1, query: $query) {
+                    orders(first: ${count}, query: $query) {
                         edges {
                             node {
                                 id
@@ -172,6 +167,45 @@ export class ShopifyService {
                     }
                 }
             `;
+    }
+
+    async getPastOrders(orderNumber: string, email: string): Promise<NormalizedOrder[] | null> {
+        try {
+            const storeConfig = this.getStoreConfigFromOrderNumber(orderNumber);
+            if (!storeConfig) {
+                throw new Error(`No Shopify store found for order number: ${orderNumber}`);
+            }
+            // get few order from customer
+            const query = this.getGqlQuery(5)
+
+            // filter by customer email
+            const variables = {
+                query: `email:${email}`
+            };
+
+            const data = await this.makeGraphQLRequest(storeConfig.url, storeConfig.accessToken, query, variables);
+
+            if (!data.orders.edges.length) {
+                console.warn(`No Shopify order found for order number: ${orderNumber}`);
+                return null;
+            }
+
+            const orders = data.orders.edges.map((edge: any) => this.normalizeGraphQLOrder(edge.node));
+            return orders;
+
+        } catch (error) {
+            console.error(`Error fetching Shopify order ${orderNumber}:`, error);
+            throw error;
+        }
+    }
+
+    async getOrder(orderNumber: string): Promise<NormalizedOrder | null> {
+        try {
+            const storeConfig = this.getStoreConfigFromOrderNumber(orderNumber);
+            if (!storeConfig) {
+                throw new Error(`No Shopify store found for order number: ${orderNumber}`);
+            }
+            const query = this.getGqlQuery(1)
             const variables = {
                 query: `name:${orderNumber}`
             };
