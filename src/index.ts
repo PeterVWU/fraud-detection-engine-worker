@@ -82,11 +82,13 @@ export default class FraudDetectionWorker extends WorkerEntrypoint {
 	}
 
 	async updateFraudulentOrderStatus(orderId: string, duoplaneId: string, status: "confirmed_fraud" | "false_positive", reviewedBy: string): Promise<any> {
+		console.log('Updating order status', orderId, duoplaneId, status, reviewedBy);
 		const env = this.env as Env
 		const databaseService = new DatabaseService(env);
 		const duoplaneService = new DuoplaneService(env);
 		await databaseService.updateFraudulentOrderStatus(orderId, status, reviewedBy);
 		if (status === 'false_positive') {
+			console.log('trigger releaseOrder');
 			await duoplaneService.releaseOrder(duoplaneId);
 		}
 		return { message: 'status update success' };
