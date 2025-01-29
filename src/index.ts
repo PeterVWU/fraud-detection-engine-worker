@@ -89,7 +89,7 @@ export default class FraudDetectionWorker extends WorkerEntrypoint {
 		await databaseService.updateFraudulentOrderStatus(orderId, status, reviewedBy);
 		if (status === 'false_positive') {
 			console.log('trigger releaseOrder');
-			await duoplaneService.releaseOrder(duoplaneId);
+			await duoplaneService.releaseOrder(duoplaneId.replace(/\.0$/, ''));
 		}
 		return { message: 'status update success' };
 	}
