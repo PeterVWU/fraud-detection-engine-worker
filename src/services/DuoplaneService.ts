@@ -94,10 +94,10 @@ export class DuoplaneService {
             throw error;
         }
     }
-    async releaseOrder(orderId: string): Promise<void> {
+    async releaseOrder(duoplaneId: string): Promise<void> {
         try {
             const holdUntil = new Date(); // hold date set to today 
-            await this.makeRequest(`/purchase_orders/${orderId}.json`, 'PUT', undefined, {
+            await this.makeRequest(`/purchase_orders/${duoplaneId}.json`, 'PUT', undefined, {
                 purchase_order: {
                     confirmed: 1,
                     hold_purchase_order_until: holdUntil.toISOString(),
@@ -105,7 +105,7 @@ export class DuoplaneService {
                 }
             });
         } catch (error) {
-            console.error(`Error releasing order ${orderId} from hold:`, error);
+            console.error(`Error releasing order ${duoplaneId} from hold:`, error);
             throw error;
         }
     }

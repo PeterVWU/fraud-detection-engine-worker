@@ -73,17 +73,22 @@ export default class FraudDetectionWorker extends WorkerEntrypoint {
 		return results;
 	}
 
-	async getFraudulentOrders(): Promise<any> {
+	async getFraudulentOrders(status: string): Promise<any> {
+		console.log('Getting fraudulent orders');
 		const env = this.env as Env
 		const databaseService = new DatabaseService(env);
-		const orders = await databaseService.getFraudulentOrders();
+		const orders = await databaseService.getFraudulentOrders(status);
 		return orders;
 	}
 
-	async updateFraudulentOrderStatus(orderId: string, status: "confirmed_fraud" | "false_positive", reviewedBy: string): Promise<any> {
+	async updateFraudulentOrderStatus(orderId: string, duoplaneId: string, status: "confirmed_fraud" | "false_positive", reviewedBy: string): Promise<any> {
 		const env = this.env as Env
 		const databaseService = new DatabaseService(env);
+		const duoplaneService = new DuoplaneService(env);
 		await databaseService.updateFraudulentOrderStatus(orderId, status, reviewedBy);
+		if (status === 'false_positive') {
+			await duoplaneService.releaseOrder(duoplaneId);
+		}
 		return { message: 'status update success' };
 	}
 };

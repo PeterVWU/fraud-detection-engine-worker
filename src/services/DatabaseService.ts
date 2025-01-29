@@ -49,7 +49,7 @@ export class DatabaseService {
             ipLocation?.country || null,
             0,
             fraudResult.details,
-            order.metadata?.duoplane_id
+            order.metadata?.duoplane_id.replace(/\.0$/, '')
         ).run();
     }
 
